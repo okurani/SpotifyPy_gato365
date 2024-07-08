@@ -1,1 +1,1 @@
-# SpotifyPy_gato365
+# spotifypy_gato365
