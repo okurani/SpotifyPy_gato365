@@ -17,6 +17,36 @@ def search_spotify(queries, access_token):
             print(f"Failed to search for {query}: {response.text}")
     return search_results
 
+def get_track_audio_features(queries=None, ids=None, access_token=None):
+    if ids and len(ids) > 100:
+        raise ValueError("The maximum length of the ids vector is 100. Please shorten the length of the input vector.")
+    
+    if queries is not None:
+        search_results = search_spotify(queries, "track", access_token=access_token)
+        ids = [track['id'] for track in search_results]
+    
+    if not ids:
+        raise ValueError("No track ids provided or found.")
+    
+    url = 'https://api.spotify.com/v1/audio-features'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {'ids': ','.join(ids)}
+    
+    response = requests.get(url, headers=headers, params=params)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to get track audio features: {response.text}")
+    
+    result = response.json()['audio_features']
+    
+    df = pd.DataFrame(result)
+    df = df.drop(columns=['type', 'uri', 'track_href', 'analysis_url'])
+    df = df.rename(columns={'id': 'track_id'})
+    
+    return df
+
+
+
 def get_albums(queries=None, ids=None, access_token=None):
      if queries is not None:
         search_results = search_spotify(queries, access_token)
@@ -157,9 +187,32 @@ def get_artist_albums(query=None, id=None, limit=20, offset=0, access_token=None
     return results
 
 
+def get_album_summary(query=None, id=None, access_token=None):
+    if query is not None:
+        search_results = search_spotify([query], access_token)
+        id = [album['id'] for album in search_results]
+
+    if not id:
+        raise ValueError("No album id provided or found.")
+
+    album = get_albums(ids=id, access_token=access_token)
+    tracks = get_album_tracks(ids=id, access_token=access_token)
+    features = get_track_audio_features(ids=tracks['track_id'].tolist(), access_token=access_token)
+
+    summary = features[['danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo', 'duration_ms', 'mode']].agg(['mean', 'std'])
+    summary_flat = summary.unstack().to_frame().T
+    summary_flat.columns = [f"{stat}_{feat}" for feat, stat in summary_flat.columns]
+
+    result = pd.concat([album.reset_index(drop=True), summary_flat.reset_index(drop=True)], axis=1)
+    result = result.drop(columns=['label', 'release_date', 'artist_id', 'artist_name'])
+
+    return result
+
+
+
 client_id = os.getenv('SPOTIFY_CLIENT_ID')
 client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
 access_token = get_spotify_access_token(client_id, client_secret)
 
-artist_albums = get_artist_albums(query="Gracie Abrams", access_token=access_token)
-print(artist_albums)
+album_summary_df = get_album_summary(query="The Secret of Us", access_token=access_token)
+print(album_summary_df)
