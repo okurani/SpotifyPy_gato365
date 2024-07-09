@@ -107,12 +107,59 @@ def get_album_tracks(queries=None, ids=None, limit=20, offset=0, access_token=No
     return df
 
 
+def get_artist_albums(query=None, id=None, limit=20, offset=0, access_token=None):
+    if query is not None:
+        search_url = 'https://api.spotify.com/v1/search'
+        search_params = {
+            'q': query,
+            'type': 'artist',
+            'limit': 1
+        }
+        headers = {
+            'Authorization': 'Bearer ' + access_token
+        }
+        search_response = requests.get(search_url, params=search_params, headers=headers)
+        search_response.raise_for_status()
+        search_results = search_response.json()
+        if 'artists' in search_results and 'items' in search_results['artists']:
+            id = search_results['artists']['items'][0]['id']
+
+    url = f'https://api.spotify.com/v1/artists/{id}/albums'
+    params = {
+        'include_groups': 'album',
+        'market': 'US',
+        'limit': limit,
+        'offset': offset
+    }
+    headers = {
+        'Authorization': 'Bearer ' + access_token
+    }
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    result = response.json()
+
+    albums = result.get('items', [])
+    cleaned_albums = []
+    for album in albums:
+        artists = [{'id': artist['id'], 'name': artist['name']} for artist in album['artists']]
+        cleaned_album = {
+            'album_type': album['album_type'],
+            'album_id': album['id'],
+            'album_name': album['name'],
+            'release_date': album['release_date'],
+            'total_tracks': album['total_tracks'],
+            'artist_id': ', '.join(artist['id'] for artist in artists),
+            'artist_name': ', '.join(artist['name'] for artist in artists)
+        }
+        cleaned_albums.append(cleaned_album)
+
+    results = pd.DataFrame(cleaned_albums)
+    return results
+
+
 client_id = os.getenv('SPOTIFY_CLIENT_ID')
 client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
 access_token = get_spotify_access_token(client_id, client_secret)
-queries = ["Red", "The Secret of Us", "SOS"]
 
-album_df_queries = get_albums(queries=queries, access_token=access_token)
-print(album_df_queries)
-album_tracks_df = get_album_tracks(queries=queries, access_token=access_token)
-print(album_tracks_df)
+artist_albums = get_artist_albums(query="Gracie Abrams", access_token=access_token)
+print(artist_albums)
