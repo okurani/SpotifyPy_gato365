@@ -209,10 +209,22 @@ def get_album_summary(query=None, id=None, access_token=None):
     return result
 
 
+def get_album_track_features(queries=None, ids=None, access_token=None):
+    tracks = get_album_tracks(queries=queries, ids=ids, access_token=access_token)
+    track_ids = tracks['track_id'].tolist()
+    features = get_track_audio_features(ids=track_ids, access_token=access_token)
+
+    result = pd.merge(tracks, features, on='track_id')
+    result = result.drop(columns=['duration_ms_x', 'disc_number'])
+    result = result.rename(columns={'duration_ms_y': 'duration_ms'})
+
+    return result
+
+
 
 client_id = os.getenv('SPOTIFY_CLIENT_ID')
 client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
 access_token = get_spotify_access_token(client_id, client_secret)
 
-album_summary_df = get_album_summary(query="The Secret of Us", access_token=access_token)
-print(album_summary_df)
+album_track_features_df = get_album_track_features(queries=["SOS", "The Secret of Us"], access_token=access_token)
+print(album_track_features_df)
