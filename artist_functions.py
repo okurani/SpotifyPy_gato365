@@ -73,9 +73,44 @@ def get_artist_projects(query=None, id=None, access_token=None, limit=20, offset
     df = df[['id', 'name', 'release_date', 'release_date_precision']].rename(columns={'id': 'album_id', 'name': 'album_name'}).drop_duplicates()
     return df
 
+def get_related_artists(query=None, id=None, access_token=None):
+    # If a query is provided, search for the artist to get the ID
+    if query:
+        search_results = search_spotify([query], access_token)
+        if not search_results:
+            raise ValueError(f"No artist found for query: {query}")
+        id = search_results[0]['id']
+
+    if not id:
+        raise ValueError("Artist ID must be provided or found through a search query.")
+    
+    url = f"https://api.spotify.com/v1/artists/{id}/related-artists"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    response = requests.get(url, headers=headers)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch related artists: {response.text}")
+    
+    related_artists = response.json()['artists']
+    df = pd.DataFrame(related_artists)
+    
+    # Define columns to drop
+    columns_to_drop = ['href', 'images', 'uri', 'external_urls', 'followers.href']
+    # Check for the existence of each column before dropping
+    columns_to_drop = [col for col in columns_to_drop if col in df.columns]
+    
+    df = df.drop(columns=columns_to_drop)
+    df = df.rename(columns={'id': 'artist_id', 'name': 'artist_name'})
+    
+    # Arrange columns in the specified order
+    columns_order = ['genres', 'artist_id', 'artist_name', 'popularity', 'type', 'followers']
+    df = df[columns_order]
+
+    return df
+
 client_id = os.getenv('SPOTIFY_CLIENT_ID')
 client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
 access_token = get_spotify_access_token(client_id, client_secret)
 
-artist_project_df = get_artist_projects(query = "Taylor Swift", access_token=access_token)
-print(artist_project_df)
+related_artist_df = get_related_artists(query = "Taylor Swift", access_token=access_token)
+print(related_artist_df)
