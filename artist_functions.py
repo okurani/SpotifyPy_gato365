@@ -1,9 +1,21 @@
 import os
 import requests
-from authorize import get_spotify_access_token, search_spotify
+from authorize import get_spotify_access_token
 
 import pandas as pd
 
+def search_spotify(queries, access_token):
+    search_results = []
+    for query in queries:
+        search_url = 'https://api.spotify.com/v1/search'
+        headers = {'Authorization': f'Bearer {access_token}'}
+        params = {'q': query, 'type': 'artist', 'limit': 1}  # Set limit to 1 for demo purposes
+        response = requests.get(search_url, headers=headers, params=params)
+        if response.status_code == 200:
+            search_results.extend(response.json()['artists']['items'])
+        else:
+            print(f"Failed to search for {query}: {response.text}")
+    return search_results
 
 def get_artists(queries=None, ids=None, access_token=None):
     if queries is not None:
