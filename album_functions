@@ -58,6 +58,55 @@ def get_albums(queries=None, ids=None, access_token=None):
      df = pd.DataFrame(data)
      return df
 
+
+def get_album_tracks(queries=None, ids=None, limit=20, offset=0, access_token=None):
+    if queries is not None:
+        search_results = search_spotify(queries, access_token)
+        ids = [album['id'] for album in search_results]
+
+    if not ids:
+        raise ValueError("No album ids provided or found.")
+    
+    url = "https://api.spotify.com/v1/albums"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    
+    if len(ids) > 1:
+        params = {'ids': ','.join(ids), 'market': 'US', 'limit': limit, 'offset': offset}
+        response = requests.get(url, headers=headers, params=params)
+    else:
+        url += f"/{ids[0]}"
+        params = {'market': 'US', 'limit': limit, 'offset': offset}
+        response = requests.get(url, headers=headers, params=params)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to get album tracks info: {response.text}")
+    
+    result = response.json()
+    
+    if len(ids) > 1:
+        albums_tracks = [track for album in result['albums'] for track in album['tracks']['items']]
+    else:
+        albums_tracks = result['tracks']['items']
+    
+    for track in albums_tracks:
+        for artist in track['artists']:
+            artist['id'] = artist['id']
+            artist['name'] = artist['name']
+    
+    df = pd.DataFrame({
+        'track_id': [track['id'] for track in albums_tracks],
+        'track_name': [track['name'] for track in albums_tracks],
+        'disc_number': [track['disc_number'] for track in albums_tracks],
+        'duration_ms': [track['duration_ms'] for track in albums_tracks],
+        'explicit': [track['explicit'] for track in albums_tracks],
+        'popularity': [track['popularity'] if 'popularity' in track else None for track in albums_tracks],
+        'artist_id': [', '.join([artist['id'] for artist in track['artists']]) for track in albums_tracks],
+        'artist_name': [', '.join([artist['name'] for artist in track['artists']]) for track in albums_tracks]
+    })
+    
+    return df
+
+
 client_id = os.getenv('SPOTIFY_CLIENT_ID')
 client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
 access_token = get_spotify_access_token(client_id, client_secret)
@@ -65,3 +114,5 @@ queries = ["Red", "The Secret of Us", "SOS"]
 
 album_df_queries = get_albums(queries=queries, access_token=access_token)
 print(album_df_queries)
+album_tracks_df = get_album_tracks(queries=queries, access_token=access_token)
+print(album_tracks_df)
