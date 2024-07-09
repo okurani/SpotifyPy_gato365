@@ -242,6 +242,62 @@ def get_artist_summary(query=None, id=None, access_token=None):
 
     return result
 
-queries = ["Taylor Swift", "Sam Hunt"]
-artists_summary = get_artists_summary(queries = queries, access_token=access_token)
-print(artists_summary)
+def get_artist_top_tracks(query=None, id=None, access_token=None):
+    # If a query is provided, search for the artist to get the ID
+    if query:
+        search_results = search_spotify([query], access_token)
+        if not search_results:
+            raise ValueError(f"No artist found for query: {query}")
+        id = search_results[0]['id']
+
+    if not id:
+        raise ValueError("Artist ID must be provided or found through a search query.")
+    
+    url = f"https://api.spotify.com/v1/artists/{id}/top-tracks"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {'market': 'US'}
+    response = requests.get(url, headers=headers, params=params)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch top tracks: {response.text}")
+    
+    top_tracks = response.json()['tracks']
+    df = pd.DataFrame(top_tracks)
+    
+    # Process artist information within the tracks
+    df['artists'] = df['artists'].apply(lambda artists: [{'id': artist['id'], 'name': artist['name']} for artist in artists])
+    df['artist_id'] = df['artists'].apply(lambda artists: ', '.join([artist['id'] for artist in artists]))
+    df['artist_name'] = df['artists'].apply(lambda artists: ', '.join([artist['name'] for artist in artists]))
+
+    # Define columns to drop and check for their existence
+    columns_to_drop = [
+        'href', 'is_local', 'is_playable', 'preview_url', 'uri', 
+        'album.artists', 'album.href', 'album.images', 'album.is_playable',
+        'album.release_date', 'album.release_date_precision', 'album.total_tracks',
+        'album.type', 'album.uri', 'album.external_urls.spotify',
+        'external_ids.isrc', 'external_urls.spotify', 'artists'
+    ]
+    columns_to_drop = [col for col in columns_to_drop if col in df.columns]
+    
+    df = df.drop(columns=columns_to_drop)
+    df = df.rename(columns={
+        'id': 'track_id',
+        'album.album_type': 'album_type',
+        'album.name': 'album_name',
+        'name': 'track_name',
+        'album.id': 'album_id'
+    })
+
+    # Check for existence of columns to rearrange
+    columns_order = [
+        'track_name', 'track_id', 'artist_name', 'artist_id', 
+        'album_name', 'album_id', 'album_type', 'popularity', 
+        'disc_number', 'duration_ms', 'explicit', 'track_number'
+    ]
+    columns_order = [col for col in columns_order if col in df.columns]
+    df = df[columns_order]
+
+    return df
+
+top_tracks_df = get_artist_top_tracks(query="Morgan Wallen", access_token=access_token)
+print(top_tracks_df.head(20))
