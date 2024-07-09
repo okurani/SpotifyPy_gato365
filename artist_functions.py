@@ -203,5 +203,45 @@ client_id = os.getenv('SPOTIFY_CLIENT_ID')
 client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
 access_token = get_spotify_access_token(client_id, client_secret)
 
-artist_audio_features_df = get_artist_audio_features(query = "Taylor Swift", access_token=access_token)
-print(artist_audio_features_df)
+
+def get_artists_summary(queries=None, ids=None, access_token=None):
+    if queries:
+        summaries = [get_artist_summary(query=query, access_token=access_token) for query in queries]
+    elif ids:
+        summaries = [get_artist_summary(id=artist_id, access_token=access_token) for artist_id in ids]
+    else:
+        raise ValueError("Either queries or ids must be provided.")
+
+    return pd.concat(summaries, ignore_index=True)
+
+def get_artist_summary(query=None, id=None, access_token=None):
+    # Get artist information
+    artist = get_artists(queries=[query] if query else None, ids=[id] if id else None, access_token=access_token)
+    artist = artist[['artist_name', 'artist_id']]
+    
+    # Get artist audio features
+    features = get_artist_audio_features(query=query, id=id, access_token=access_token)
+
+    # Calculate number of songs
+    num_songs = features.shape[0]
+
+    # Create summary statistics
+    summary = features[['danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 
+                        'instrumentalness', 'liveness', 'valence', 'explicit', 'tempo', 'duration_ms', 'mode']].agg(['mean', 'std']).T.reset_index()
+    summary.columns = ['feature', 'mean', 'std']
+
+    # Add artist information
+    result = pd.DataFrame({'artist_name': [artist['artist_name'].iloc[0]], 
+                           'artist_id': [artist['artist_id'].iloc[0]], 
+                           'num_songs': [num_songs]})
+    
+    # Combine results
+    for index, row in summary.iterrows():
+        result[row['feature'] + '_mean'] = row['mean']
+        result[row['feature'] + '_std'] = row['std']
+
+    return result
+
+queries = ["Taylor Swift", "Sam Hunt"]
+artists_summary = get_artists_summary(queries = queries, access_token=access_token)
+print(artists_summary)
