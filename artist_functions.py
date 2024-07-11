@@ -298,6 +298,3 @@ def get_artist_top_tracks(query=None, id=None, access_token=None):
     df = df[columns_order]
 
     return df
-
-top_tracks_df = get_artist_top_tracks(query="Morgan Wallen", access_token=access_token)
-print(top_tracks_df.head(20))
