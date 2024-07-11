@@ -4,15 +4,15 @@ from authorize import get_spotify_access_token
 
 import pandas as pd
 
-def search_spotify(queries, access_token):
+def search_spotify(queries, search_type, access_token):
     search_results = []
     for query in queries:
         search_url = 'https://api.spotify.com/v1/search'
         headers = {'Authorization': f'Bearer {access_token}'}
-        params = {'q': query, 'type': 'album', 'limit': 1}  # Set limit to 1 for demo purposes
+        params = {'q': query, 'type': search_type, 'limit': 1}  # Set limit to 1 for demo purposes
         response = requests.get(search_url, headers=headers, params=params)
         if response.status_code == 200:
-            search_results.extend(response.json()['albums']['items'])
+            search_results.extend(response.json()[f'{search_type}s']['items'])
         else:
             print(f"Failed to search for {query}: {response.text}")
     return search_results
@@ -49,7 +49,7 @@ def get_track_audio_features(queries=None, ids=None, access_token=None):
 
 def get_albums(queries=None, ids=None, access_token=None):
      if queries is not None:
-        search_results = search_spotify(queries, access_token)
+        search_results = search_spotify(queries, "album", access_token)
         ids = [album['id'] for album in search_results]
      if not ids:
         raise ValueError("No album ids provided or found.")
@@ -91,7 +91,7 @@ def get_albums(queries=None, ids=None, access_token=None):
 
 def get_album_tracks(queries=None, ids=None, limit=20, offset=0, access_token=None):
     if queries is not None:
-        search_results = search_spotify(queries, access_token)
+        search_results = search_spotify(queries, "album", access_token)
         ids = [album['id'] for album in search_results]
 
     if not ids:
@@ -189,7 +189,7 @@ def get_artist_albums(query=None, id=None, limit=20, offset=0, access_token=None
 
 def get_album_summary(query=None, id=None, access_token=None):
     if query is not None:
-        search_results = search_spotify([query], access_token)
+        search_results = search_spotify([query], "album", access_token)
         id = [album['id'] for album in search_results]
 
     if not id:
