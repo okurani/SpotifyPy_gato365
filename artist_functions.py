@@ -4,22 +4,22 @@ from authorize import get_spotify_access_token
 from constants import pitch_class_lookup
 import pandas as pd
 
-def search_spotify(queries, access_token):
+def search_spotify(queries, search_type, access_token):
     search_results = []
     for query in queries:
         search_url = 'https://api.spotify.com/v1/search'
         headers = {'Authorization': f'Bearer {access_token}'}
-        params = {'q': query, 'type': 'artist', 'limit': 1}  # Set limit to 1 for demo purposes
+        params = {'q': query, 'type': search_type, 'limit': 1}  # Set limit to 1 for demo purposes
         response = requests.get(search_url, headers=headers, params=params)
         if response.status_code == 200:
-            search_results.extend(response.json()['artists']['items'])
+            search_results.extend(response.json()[f'{search_type}s']['items'])
         else:
             print(f"Failed to search for {query}: {response.text}")
     return search_results
 
 def get_artists(queries=None, ids=None, access_token=None):
     if queries is not None:
-        search_results = search_spotify(queries, access_token)
+        search_results = search_spotify(queries, "artist", access_token)
         ids = [artist['id'] for artist in search_results]
     if not ids:
         raise ValueError("No artist ids provided or found.")
@@ -48,10 +48,11 @@ def get_artists(queries=None, ids=None, access_token=None):
     })
     return df
 
+
 def get_artist_projects(query=None, id=None, access_token=None, limit=20, offset=0):
     if query:
         access_token = get_spotify_access_token(client_id, client_secret)
-        search_results = search_spotify([query], access_token)
+        search_results = search_spotify([query],"artist", access_token)
         id = search_results[0]['id'] if search_results else None
     if not id:
         raise ValueError("Artist ID must be provided or found through a search query.")
@@ -75,7 +76,7 @@ def get_artist_projects(query=None, id=None, access_token=None, limit=20, offset
 
 def get_related_artists(query=None, id=None, access_token=None):
     if query:
-        search_results = search_spotify([query], access_token)
+        search_results = search_spotify([query], "artist",access_token)
         if not search_results:
             raise ValueError(f"No artist found for query: {query}")
         id = search_results[0]['id']
@@ -199,10 +200,6 @@ def get_artist_audio_features(query=None, id=None, access_token=None):
 
     return result
 
-client_id = os.getenv('SPOTIFY_CLIENT_ID')
-client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
-access_token = get_spotify_access_token(client_id, client_secret)
-
 
 def get_artists_summary(queries=None, ids=None, access_token=None):
     if queries:
@@ -245,7 +242,7 @@ def get_artist_summary(query=None, id=None, access_token=None):
 def get_artist_top_tracks(query=None, id=None, access_token=None):
     # If a query is provided, search for the artist to get the ID
     if query:
-        search_results = search_spotify([query], access_token)
+        search_results = search_spotify([query], "artist",access_token)
         if not search_results:
             raise ValueError(f"No artist found for query: {query}")
         id = search_results[0]['id']
