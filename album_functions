@@ -1,0 +1,229 @@
+import os
+import requests
+from authorize import get_spotify_access_token
+
+import pandas as pd
+
+def search_spotify(queries, access_token):
+    search_results = []
+    for query in queries:
+        search_url = 'https://api.spotify.com/v1/search'
+        headers = {'Authorization': f'Bearer {access_token}'}
+        params = {'q': query, 'type': 'album', 'limit': 1}  # Set limit to 1 for demo purposes
+        response = requests.get(search_url, headers=headers, params=params)
+        if response.status_code == 200:
+            search_results.extend(response.json()['albums']['items'])
+        else:
+            print(f"Failed to search for {query}: {response.text}")
+    return search_results
+
+def get_track_audio_features(queries=None, ids=None, access_token=None):
+    if ids and len(ids) > 100:
+        raise ValueError("The maximum length of the ids vector is 100. Please shorten the length of the input vector.")
+    
+    if queries is not None:
+        search_results = search_spotify(queries, "track", access_token=access_token)
+        ids = [track['id'] for track in search_results]
+    
+    if not ids:
+        raise ValueError("No track ids provided or found.")
+    
+    url = 'https://api.spotify.com/v1/audio-features'
+    headers = {'Authorization': f'Bearer {access_token}'}
+    params = {'ids': ','.join(ids)}
+    
+    response = requests.get(url, headers=headers, params=params)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to get track audio features: {response.text}")
+    
+    result = response.json()['audio_features']
+    
+    df = pd.DataFrame(result)
+    df = df.drop(columns=['type', 'uri', 'track_href', 'analysis_url'])
+    df = df.rename(columns={'id': 'track_id'})
+    
+    return df
+
+
+
+def get_albums(queries=None, ids=None, access_token=None):
+     if queries is not None:
+        search_results = search_spotify(queries, access_token)
+        ids = [album['id'] for album in search_results]
+     if not ids:
+        raise ValueError("No album ids provided or found.")
+     
+     url = 'https://api.spotify.com/v1/albums'
+     headers = {'Authorization': f'Bearer {access_token}'}
+     if len(ids) > 1:
+        url += '?ids=' + ','.join(ids) + '&market=US'
+        response = requests.get(url, headers=headers)
+     else:
+        url += '/' + ids[0] + '?market=US'
+        response = requests.get(url, headers=headers)
+     if response.status_code != 200:
+        raise Exception(f"Failed to get album info: {response.text}")
+     album_data = response.json()
+     if len(ids) > 1:
+        albums = album_data['albums']
+     else:
+        albums = [album_data]
+
+     data = []
+     for album in albums:
+        for artist in album['artists']:
+            data.append({
+                'album_id': album['id'],
+                'label': album['label'],
+                'album_name': album['name'],
+                'artist_id': artist['id'],
+                'artist_name': artist['name'],
+                'release_date': album['release_date'],
+                'total_tracks': album['total_tracks'],
+                'album_type': album['album_type'],
+                'popularity': album.get('popularity', None)  # Not all responses might have popularity
+             })
+            
+     df = pd.DataFrame(data)
+     return df
+
+
+def get_album_tracks(queries=None, ids=None, limit=20, offset=0, access_token=None):
+    if queries is not None:
+        search_results = search_spotify(queries, access_token)
+        ids = [album['id'] for album in search_results]
+
+    if not ids:
+        raise ValueError("No album ids provided or found.")
+    
+    url = "https://api.spotify.com/v1/albums"
+    headers = {'Authorization': f'Bearer {access_token}'}
+    
+    if len(ids) > 1:
+        params = {'ids': ','.join(ids), 'market': 'US', 'limit': limit, 'offset': offset}
+        response = requests.get(url, headers=headers, params=params)
+    else:
+        url += f"/{ids[0]}"
+        params = {'market': 'US', 'limit': limit, 'offset': offset}
+        response = requests.get(url, headers=headers, params=params)
+    
+    if response.status_code != 200:
+        raise Exception(f"Failed to get album tracks info: {response.text}")
+    
+    result = response.json()
+    
+    if len(ids) > 1:
+        albums_tracks = [track for album in result['albums'] for track in album['tracks']['items']]
+    else:
+        albums_tracks = result['tracks']['items']
+    
+    for track in albums_tracks:
+        for artist in track['artists']:
+            artist['id'] = artist['id']
+            artist['name'] = artist['name']
+    
+    df = pd.DataFrame({
+        'track_id': [track['id'] for track in albums_tracks],
+        'track_name': [track['name'] for track in albums_tracks],
+        'disc_number': [track['disc_number'] for track in albums_tracks],
+        'duration_ms': [track['duration_ms'] for track in albums_tracks],
+        'explicit': [track['explicit'] for track in albums_tracks],
+        'popularity': [track['popularity'] if 'popularity' in track else None for track in albums_tracks],
+        'artist_id': [', '.join([artist['id'] for artist in track['artists']]) for track in albums_tracks],
+        'artist_name': [', '.join([artist['name'] for artist in track['artists']]) for track in albums_tracks]
+    })
+    
+    return df
+
+
+def get_artist_albums(query=None, id=None, limit=20, offset=0, access_token=None):
+    if query is not None:
+        search_url = 'https://api.spotify.com/v1/search'
+        search_params = {
+            'q': query,
+            'type': 'artist',
+            'limit': 1
+        }
+        headers = {
+            'Authorization': 'Bearer ' + access_token
+        }
+        search_response = requests.get(search_url, params=search_params, headers=headers)
+        search_response.raise_for_status()
+        search_results = search_response.json()
+        if 'artists' in search_results and 'items' in search_results['artists']:
+            id = search_results['artists']['items'][0]['id']
+
+    url = f'https://api.spotify.com/v1/artists/{id}/albums'
+    params = {
+        'include_groups': 'album',
+        'market': 'US',
+        'limit': limit,
+        'offset': offset
+    }
+    headers = {
+        'Authorization': 'Bearer ' + access_token
+    }
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    result = response.json()
+
+    albums = result.get('items', [])
+    cleaned_albums = []
+    for album in albums:
+        artists = [{'id': artist['id'], 'name': artist['name']} for artist in album['artists']]
+        cleaned_album = {
+            'album_type': album['album_type'],
+            'album_id': album['id'],
+            'album_name': album['name'],
+            'release_date': album['release_date'],
+            'total_tracks': album['total_tracks'],
+            'artist_id': ', '.join(artist['id'] for artist in artists),
+            'artist_name': ', '.join(artist['name'] for artist in artists)
+        }
+        cleaned_albums.append(cleaned_album)
+
+    results = pd.DataFrame(cleaned_albums)
+    return results
+
+
+def get_album_summary(query=None, id=None, access_token=None):
+    if query is not None:
+        search_results = search_spotify([query], access_token)
+        id = [album['id'] for album in search_results]
+
+    if not id:
+        raise ValueError("No album id provided or found.")
+
+    album = get_albums(ids=id, access_token=access_token)
+    tracks = get_album_tracks(ids=id, access_token=access_token)
+    features = get_track_audio_features(ids=tracks['track_id'].tolist(), access_token=access_token)
+
+    summary = features[['danceability', 'energy', 'loudness', 'speechiness', 'acousticness', 'instrumentalness', 'liveness', 'valence', 'tempo', 'duration_ms', 'mode']].agg(['mean', 'std'])
+    summary_flat = summary.unstack().to_frame().T
+    summary_flat.columns = [f"{stat}_{feat}" for feat, stat in summary_flat.columns]
+
+    result = pd.concat([album.reset_index(drop=True), summary_flat.reset_index(drop=True)], axis=1)
+    result = result.drop(columns=['label', 'release_date', 'artist_id', 'artist_name'])
+
+    return result
+
+
+def get_album_track_features(queries=None, ids=None, access_token=None):
+    tracks = get_album_tracks(queries=queries, ids=ids, access_token=access_token)
+    track_ids = tracks['track_id'].tolist()
+    features = get_track_audio_features(ids=track_ids, access_token=access_token)
+
+    result = pd.merge(tracks, features, on='track_id')
+    result = result.drop(columns=['duration_ms_x', 'disc_number'])
+    result = result.rename(columns={'duration_ms_y': 'duration_ms'})
+
+    return result
+
+
+client_id = os.getenv('SPOTIFY_CLIENT_ID')
+client_secret = os.getenv('SPOTIFY_CLIENT_SECRET')
+access_token = get_spotify_access_token(client_id, client_secret)
+
+album_track_features_df = get_album_track_features(queries=["SOS", "The Secret of Us"], access_token=access_token)
+print(album_track_features_df)
