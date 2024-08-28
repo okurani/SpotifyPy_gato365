@@ -1,0 +1,8 @@
+LICENSE
+README.txt
+pyproject.toml
+spotipy_gato365.egg-info/PKG-INFO
+spotipy_gato365.egg-info/SOURCES.txt
+spotipy_gato365.egg-info/dependency_links.txt
+spotipy_gato365.egg-info/requires.txt
+spotipy_gato365.egg-info/top_level.txt
