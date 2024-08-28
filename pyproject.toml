@@ -1,0 +1,29 @@
+[project]
+name='spotipy_gato365'
+version='0.1'
+dependencies=[
+    'requests',
+    'pandas',
+    'dotenv'
+]
+authors = [
+  {name = "Immanuel Williams", email = "1@gmail.com"},
+  {name = "Adam Del Rio", email = "AdamDelRio8523@gmail.com"},
+  {name = "Mia Hodges", email = "2@gmail.com"},
+  {name = "Olivia Kurani", email = "3@gmail.com"},
+]
+maintainers = [
+  {name = "Olivia Kurani", email = "3@gmail.com"}
+]
+description='A Python package utilizing API calls from the Spotify Web API for data science purposes'
+readme = {file = "README.txt", content-type = "text/markdown"}
+classifiers=[
+    'Programming Language :: Python :: 3',
+    'License :: OSI Approved :: MIT License',
+    'Operating System :: OS Independent',
+]
+requires-python = ">= 3.6"
+license = {file = "LICENSE"}
+
+[tool.setuptools.packages]
+find = {}
